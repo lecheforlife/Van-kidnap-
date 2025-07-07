@@ -1,66 +1,121 @@
--- 🚐 VAN DO SEQUESTRO SCRIPT (memes 2017 vibes)
-
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
-repeat wait() until LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+local localPlayer = Players.LocalPlayer
+local playerGui = localPlayer:WaitForChild("PlayerGui")
+local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 
--- Cria a van
-local van = Instance.new("Model", Workspace)
-van.Name = "VanDoSequestro"
+-- Criar van simples
+local function createVan(position)
+    local van = Instance.new("Part")
+    van.Name = "Van"
+    van.Size = Vector3.new(6, 3, 12)
+    van.Position = position
+    van.Anchored = false
+    van.BrickColor = BrickColor.new("Bright blue")
+    van.Parent = workspace
+    return van
+end
 
-local base = Instance.new("Part", van)
-base.Size = Vector3.new(6, 3, 10)
-base.Position = LocalPlayer.Character.HumanoidRootPart.Position + Vector3.new(0, 3, -30)
-base.Anchored = false
-base.BrickColor = BrickColor.new("Black")
-base.Name = "Base"
-base.TopSurface = Enum.SurfaceType.Smooth
-base.BottomSurface = Enum.SurfaceType.Smooth
+-- Fechar porta (mudar cor da van)
+local function closeVanDoor(van)
+    van.BrickColor = BrickColor.new("Really black")
+end
 
-local seat = Instance.new("VehicleSeat", van)
-seat.Size = Vector3.new(2, 1, 2)
-seat.Position = base.Position + Vector3.new(0, 1.5, 0)
-seat.Name = "DriverSeat"
-seat.Anchored = false
+-- Abrir porta (cor original)
+local function openVanDoor(van)
+    van.BrickColor = BrickColor.new("Bright blue")
+end
 
--- Junta as partes
-local weld = Instance.new("WeldConstraint", base)
-weld.Part0 = base
-weld.Part1 = seat
+-- Mover van com Tween
+local function moveVanAway(van, distance, duration)
+    local goal = {}
+    goal.Position = van.Position + Vector3.new(distance, 0, 0)
+    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+    local tween = TweenService:Create(van, tweenInfo, goal)
+    tween:Play()
+    tween.Completed:Wait()
+end
 
--- Mecanismo de “sequestro”
-local function sequestrar(target)
-    local char = target.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        wait(1)
-        -- Teleporta o player dentro da van
-        char:MoveTo(base.Position + Vector3.new(0, 2, 0))
-        
-        -- Mensagem no chat
-        game.StarterGui:SetCore("ChatMakeSystemMessage", {
-            Text = "🚐 Pegamos o "..target.Name.."! Van do Sequestro strikes again!";
-            Color = Color3.fromRGB(255, 0, 0);
-            Font = Enum.Font.SourceSansBold;
-            FontSize = Enum.FontSize.Size24;
-        })
+-- Função principal: sequestrar jogador pelo nick
+local function kidnapPlayerByName(nick)
+    local targetPlayer = Players:FindFirstChild(nick)
+    if not targetPlayer then
+        warn("Jogador não encontrado: "..nick)
+        return
     end
+
+    local targetChar = targetPlayer.Character
+    if not targetChar or not targetChar:FindFirstChild("HumanoidRootPart") then
+        warn("Personagem do jogador não encontrado ou inválido")
+        return
+    end
+
+    local vanStartPos = humanoidRootPart.Position + Vector3.new(10, 0, 10)
+    local van = createVan(vanStartPos)
+
+    -- Teleporta o personagem para perto da van (simulando o sequestro)
+    targetChar:SetPrimaryPartCFrame(van.CFrame * CFrame.new(0, 0, -3))
+
+    wait(1)
+
+    closeVanDoor(van)
+
+    wait(1)
+
+    -- Move van pra longe
+    moveVanAway(van, 100, 5)
+
+    wait(1)
+
+    openVanDoor(van)
+
+    -- Derruba personagem (humanoid com health 0)
+    local humanoid = targetChar:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.Health = 0
+    end
+
+    wait(1)
+
+    van:Destroy()
+
+    print("Sequestro finalizado para "..nick)
 end
 
--- Move a van até o player e sequestra ele
-local function startVanSequestro()
-    local humanoid = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not humanoid then return end
+-- GUI para input do nick e botão
+local function createGUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "KidnapGUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = playerGui
 
-    local goalPos = humanoid.Position
-    local bodyVelocity = Instance.new("BodyVelocity", base)
-    bodyVelocity.Velocity = (goalPos - base.Position).Unit * 50
-    bodyVelocity.MaxForce = Vector3.new(999999, 999999, 999999)
+    local textBox = Instance.new("TextBox")
+    textBox.Size = UDim2.new(0, 200, 0, 40)
+    textBox.Position = UDim2.new(0.5, -100, 0.1, 0)
+    textBox.PlaceholderText = "Digite o nick da vítima"
+    textBox.Parent = screenGui
+    textBox.ClearTextOnFocus = false
 
-    wait(2.5)
-    bodyVelocity:Destroy()
-    sequestrar(LocalPlayer)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(0, 120, 0, 40)
+    button.Position = UDim2.new(0.5, -60, 0.2, 0)
+    button.Text = "Sequestrar"
+    button.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    button.TextColor3 = Color3.new(1,1,1)
+    button.Parent = screenGui
+
+    button.MouseButton1Click:Connect(function()
+        local nick = textBox.Text
+        if nick ~= "" then
+            kidnapPlayerByName(nick)
+        else
+            warn("Digite um nick válido!")
+        end
+    end)
 end
 
-startVanSequestro()
+-- Iniciar GUI
+createGUI()
