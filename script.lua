@@ -1,5 +1,3 @@
--- Script todo em uma única string para usar com loadstring
-local scriptSource = [[
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -130,18 +128,16 @@ VanPlayerButton.MouseButton1Click:Connect(function()
                 if mesh then mesh.Parent = p end
                 return p
             end
-            -- Exemplo de partes, repita até o124 ajustando offset/mesh
+
             local chassis = newPart("Chassis", Vector3.new(20,10,10), Vector3.new(0,5,0), "Really black", nil)
             local door = newPart("Door", Vector3.new(2,4,0.2), Vector3.new(-5,3,-10), "Dark stone grey", nil)
 
-            -- SOUND OPTION (motor)
             local o21 = Instance.new("Sound", o1)
             o21.Name = "EngineSound"
             o21.SoundId = "rbxassetid://12345678"
             o21.Looped = true
             o21:Play()
 
-            -- RESTORE MOVEMENT
             task.delay(10, function()
                 VictimHumanoid.WalkSpeed = 16
                 VictimHumanoid.JumpPower = 50
@@ -150,8 +146,3 @@ VanPlayerButton.MouseButton1Click:Connect(function()
         end
     end
 end)
--- FIM DA STRING DO SCRIPT
-]]
-
--- Carrega e executa
-loadstring(scriptSource)()
