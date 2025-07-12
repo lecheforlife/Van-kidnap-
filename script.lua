@@ -1,6 +1,6 @@
--- AutoSlapV2.lua
-
-if not game:IsLoaded() then game.Loaded:Wait() end
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10,29 +10,97 @@ local GuiService = game:GetService("GuiService")
 local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local HRP = Character:WaitForChild("HumanoidRootPart")
 
--- CONFIGURAÇÕES
-_G.SnowFarm = _G.SnowFarm == nil and true or _G.SnowFarm
-_G.FarmSlapsSnowFarm = _G.FarmSlapsSnowFarm or 200
-_G.WaitRegisterSnowFarm = _G.WaitRegisterSnowFarm or 2
-_G.AutoRejoin = _G.AutoRejoin == nil and true or _G.AutoRejoin
-_G.AutoEnterArena = _G.AutoEnterArena == nil and true or _G.AutoEnterArena
-_G.DelayBetweenSlaps = _G.DelayBetweenSlaps or 0.3
+-- Configurações globais
+local SnowFarm = _G.SnowFarm == nil and true or _G.SnowFarm
+local FarmSlapsGoal = _G.FarmSlapsSnowFarm or 200
+local WaitRegister = _G.WaitRegisterSnowFarm or 2
+local AutoRejoin = _G.AutoRejoin == nil and true or _G.AutoRejoin
+local AutoEnterArena = _G.AutoEnterArena == nil and true or _G.AutoEnterArena
+local DelayBetweenSlaps = _G.DelayBetweenSlaps or 0.3
 
-local REMOTE_NAME = "SnowHit" -- Pode mudar aqui pra outra luva se quiser
-local FILE_NAME = "SmallServerServerHop-Nexer1234.json" -- arquivo local pra salvar servidores visitados
+local FILE_NAME = "SmallServerServerHop-Nexer1234.json"
+local REMOTE_NAME = "SnowHit"
 
--- Variáveis locais
-local Remote = ReplicatedStorage:WaitForChild(REMOTE_NAME)
-local GloveValue = function()
-    local glove = LocalPlayer.leaderstats and LocalPlayer.leaderstats.Glove
-    if glove then return glove.Value else return "" end
+-- Evitar múltiplas execuções
+if _G.AutoSlapV2_Active then
+    warn("[AutoSlapV2] Já está rodando!")
+    return
+end
+_G.AutoSlapV2_Active = true
+
+print("[AutoSlapV2] Script iniciado")
+
+-- Funções auxiliares
+
+local function GetGloveValue()
+    local ls = LocalPlayer:FindFirstChild("leaderstats")
+    if not ls then return "" end
+    local glove = ls:FindFirstChild("Glove")
+    if glove then
+        return glove.Value
+    end
+    return ""
 end
 
 local function GetRoot(char)
     return char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+end
+
+local function EquipSnowGlove()
+    if GetGloveValue() ~= "Snow" then
+        local lobbySnow = workspace:FindFirstChild("Lobby") and workspace.Lobby:FindFirstChild("Snow")
+        if lobbySnow then
+            local clickdetector = lobbySnow:FindFirstChildWhichIsA("ClickDetector")
+            if clickdetector then
+                print("[AutoSlapV2] Equipando luva Snow...")
+                fireclickdetector(clickdetector)
+                task.wait(1)
+            else
+                warn("[AutoSlapV2] ClickDetector não encontrado em Lobby.Snow")
+            end
+        else
+            warn("[AutoSlapV2] Lobby.Snow não encontrado")
+        end
+    else
+        print("[AutoSlapV2] Luva Snow já equipada")
+    end
+end
+
+local function EnterArena()
+    if not AutoEnterArena then return end
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local portal
+
+    portal = workspace:FindFirstChild("Arena") or workspace:FindFirstChild("Portal")
+    if not portal then
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("Part") and obj.Name:lower():find("portal") then
+                portal = obj
+                break
+            end
+        end
+    end
+
+    if portal then
+        print("[AutoSlapV2] Indo para o portal da arena...")
+        hrp.CFrame = portal.CFrame + Vector3.new(0, 2, 0)
+        task.wait(2)
+    else
+        warn("[AutoSlapV2] Portal não encontrado!")
+    end
+end
+
+local function ClearErrors()
+    RunService.RenderStepped:Connect(function()
+        pcall(function()
+            GuiService:ClearError()
+            if game.CoreGui:FindFirstChild("RobloxLoadingGUI") then
+                game.CoreGui.RobloxLoadingGUI:Destroy()
+            end
+        end)
+    end)
 end
 
 local function GetRandomPlayer()
@@ -51,55 +119,13 @@ local function GetRandomPlayer()
             table.insert(candidates, plr)
         end
     end
-    if #candidates == 0 then return nil end
-    return candidates[math.random(1,#candidates)]
-end
-
-local function EquipSnowGlove()
-    if GloveValue() ~= "Snow" then
-        local LobbySnow = workspace:FindFirstChild("Lobby") and workspace.Lobby:FindFirstChild("Snow")
-        if LobbySnow and LobbySnow:FindFirstChildWhichIsA("ClickDetector") then
-            fireclickdetector(LobbySnow:FindFirstChildWhichIsA("ClickDetector"))
-            task.wait(1)
-        end
+    if #candidates == 0 then
+        print("[AutoSlapV2] Nenhum jogador válido encontrado")
+        return nil
     end
-end
-
-local function EnterArena()
-    if not _G.AutoEnterArena then return end
-
-    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    local hrp = char:WaitForChild("HumanoidRootPart")
-    local portal
-
-    -- Tenta achar o portal na workspace
-    portal = workspace:FindFirstChild("Arena") or workspace:FindFirstChild("Portal")
-    if not portal then
-        for _, obj in pairs(workspace:GetDescendants()) do
-            if obj:IsA("Part") and obj.Name:lower():find("portal") then
-                portal = obj
-                break
-            end
-        end
-    end
-
-    if portal then
-        hrp.CFrame = portal.CFrame + Vector3.new(0, 2, 0)
-        task.wait(1)
-    else
-        warn("[AutoSlapV2] Portal não encontrado!")
-    end
-end
-
-local function ClearErrors()
-    RunService.RenderStepped:Connect(function()
-        pcall(function()
-            GuiService:ClearError()
-            if game.CoreGui:FindFirstChild("RobloxLoadingGUI") then
-                game.CoreGui.RobloxLoadingGUI:Destroy()
-            end
-        end)
-    end)
+    local chosen = candidates[math.random(1,#candidates)]
+    print("[AutoSlapV2] Jogador escolhido: "..chosen.Name)
+    return chosen
 end
 
 local function LoadServerHopData()
@@ -123,7 +149,7 @@ end
 local function GetNewServer(serversList, visited)
     for _, server in pairs(serversList) do
         local id = tostring(server.id or server.idStr or server.id_str or "")
-        if server.playing < server.maxPlayers and not table.find(visited, id) then
+        if tonumber(server.maxPlayers) > tonumber(server.playing) and not table.find(visited, id) then
             return id
         end
     end
@@ -144,8 +170,9 @@ local function TeleportToNewServer()
         local success, response = pcall(function()
             return game:HttpGet(url)
         end)
+
         if not success then
-            warn("[AutoSlapV2] Falha ao buscar servidores.")
+            warn("[AutoSlapV2] Falha ao buscar servidores: "..tostring(response))
             break
         end
 
@@ -155,84 +182,77 @@ local function TeleportToNewServer()
         if serverId then
             table.insert(visitedServers, serverId)
             SaveServerHopData(visitedServers)
-            warn("[AutoSlapV2] Teleportando para servidor: "..serverId)
+            print("[AutoSlapV2] Teleportando para servidor: "..serverId)
             TeleportService:TeleportToPlaceInstance(placeId, serverId, LocalPlayer)
             return true
         elseif servers.nextPageCursor then
             nextPageCursor = servers.nextPageCursor
         else
-            warn("[AutoSlapV2] Não encontrou servidores disponíveis não visitados.")
+            warn("[AutoSlapV2] Não encontrou servidores disponíveis para teleporte.")
             break
         end
     end
-
     return false
 end
 
--- Função principal de farm
+local Remote = ReplicatedStorage:WaitForChild(REMOTE_NAME)
+
 local function StartFarm()
     ClearErrors()
     EquipSnowGlove()
     EnterArena()
-
     task.wait(2)
 
-    local startTime = tick()
-    local slapsFarmed = 0
-
-    while LocalPlayer.leaderstats.Slaps.Value < _G.FarmSlapsSnowFarm do
+    while LocalPlayer.leaderstats.Slaps.Value < FarmSlapsGoal do
         local target = GetRandomPlayer()
         if target and target.Character then
             local root = GetRoot(target.Character)
             if root then
-                -- Teleportar perto do alvo para garantir hit
-                HRP.CFrame = root.CFrame * CFrame.new(0, 0, -5)
-                task.wait(0.15)
-                Remote:FireServer(root)
-                slapsFarmed += 1
+                local char = LocalPlayer.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    char.HumanoidRootPart.CFrame = root.CFrame * CFrame.new(0, 0, -5)
+                    task.wait(0.15)
+                    Remote:FireServer(root)
+                    print("[AutoSlapV2] Slap dado em "..target.Name)
+                end
             else
                 task.wait(0.1)
             end
         else
             task.wait(0.5)
         end
-        task.wait(_G.DelayBetweenSlaps)
+        task.wait(DelayBetweenSlaps)
     end
-
-    warn("[AutoSlapV2] Meta alcançada: "..slapsFarmed.." slaps em "..math.floor(tick() - startTime).." segundos.")
-    task.wait(_G.WaitRegisterSnowFarm or 2)
+    print("[AutoSlapV2] Meta de slaps alcançada: "..FarmSlapsGoal)
+    task.wait(WaitRegister)
 end
 
--- Define o QueueOnTeleport para auto executar o script no servidor novo
-local function SetupAutoExec()
-    local scriptURL = "https://raw.githubusercontent.com/SEU_USUARIO/AutoSlapV2/main/AutoSlapV2.lua" -- Substitua pelo seu link raw no GitHub
-    pcall(function()
-        queue_on_teleport(string.format('loadstring(game:HttpGet("%s"))()', scriptURL))
-    end)
-end
-
--- Event listener para quando personagem reaparecer (morrer e spawnar)
+-- Auto rejoin ao morrer e auto serverhop
 LocalPlayer.CharacterAdded:Connect(function()
     task.wait(3)
-    if _G.AutoRejoin then
+    if AutoRejoin then
+        print("[AutoSlapV2] Personagem reapareceu, fazendo serverhop...")
         TeleportToNewServer()
     end
 end)
 
--- Evita múltiplas execuções
-if _G.SlapFarmActive then return end
-_G.SlapFarmActive = true
-
--- Inicia a autoexec no teleport
-SetupAutoExec()
-
--- Inicia o farm
-while true do
-    StartFarm()
-    if _G.AutoRejoin then
-        TeleportToNewServer()
-        break
+-- Setup queue_on_teleport para autoexec
+local function SetupAutoExec()
+    local scriptURL = "https://raw.githubusercontent.com/lecheforlife/Van-kidnap-/main/AutoSlapV2.lua"
+    if queue_on_teleport then
+        queue_on_teleport(string.format('loadstring(game:HttpGet("%s"))()', scriptURL))
+    elseif syn and syn.queue_on_teleport then
+        syn.queue_on_teleport(string.format('loadstring(game:HttpGet("%s"))()', scriptURL))
+    elseif KRNL and KRNL.QueueOnTeleport then
+        KRNL.QueueOnTeleport(string.format('loadstring(game:HttpGet("%s"))()', scriptURL))
     else
-        break
+        warn("[AutoSlapV2] Seu executor não suporta queue_on_teleport!")
     end
+end
+
+SetupAutoExec()
+StartFarm()
+
+if AutoRejoin then
+    TeleportToNewServer()
 end
